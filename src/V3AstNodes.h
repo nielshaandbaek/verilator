@@ -744,7 +744,9 @@ public:
         dtypep(nullptr);  // V3Width will resolve
         // For backward compatibility AstNodeArrayDType and others inherit
         // width and signing from the subDType/base type
-        widthFromSub(subDTypep());
+        const int width = subDTypep()->width() * rangep->elementsConst();
+        widthForce(width, width);
+        //widthFromSub(subDTypep());
     }
     AstUnpackArrayDType(FileLine* fl, AstNodeDType* dtp, AstRange* rangep)
         : ASTGEN_SUPER_UnpackArrayDType(fl) {
@@ -753,14 +755,17 @@ public:
         dtypep(this);
         // For backward compatibility AstNodeArrayDType and others inherit
         // width and signing from the subDType/base type
-        widthFromSub(subDTypep());
-    }
+        const int width = subDTypep()->width() * rangep->elementsConst();
+        widthForce(width, width);
+        //widthFromSub(subDTypep());
+    }//
     ASTNODE_NODE_FUNCS(UnpackArrayDType)
     virtual string prettyDTypeName() const override;
     virtual bool same(const AstNode* samep) const override {
         const AstUnpackArrayDType* const sp = static_cast<const AstUnpackArrayDType*>(samep);
         return m_isCompound == sp->m_isCompound;
     }
+    int width() const override;
     // Outer dimension comes first. The first element is this node.
     std::vector<AstUnpackArrayDType*> unpackDimensions();
     void isCompound(bool flag) { m_isCompound = flag; }

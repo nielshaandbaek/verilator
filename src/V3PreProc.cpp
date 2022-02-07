@@ -137,6 +137,7 @@ public:
         ps_INCNAME,
         ps_ERRORNAME,
         ps_JOIN,
+        ps_SYNTH_OFF,
         ps_STRIFY
     };
     static const char* procStateName(ProcState s) {
@@ -145,9 +146,11 @@ public:
                "ps_DEFNAME_IFDEF", "ps_DEFNAME_IFNDEF", "ps_DEFNAME_ELSIF",
                "ps_DEFFORM",       "ps_DEFVALUE",       "ps_DEFPAREN",
                "ps_DEFARG",        "ps_INCNAME",        "ps_ERRORNAME",
-               "ps_JOIN",          "ps_STRIFY"};
+               "ps_JOIN",          "ps_SYNTH_OFF",      "ps_STRIFY"};
         return states[s];
     }
+
+    enum class Vendors { none, synopsys, cadence, ambit, pragma, synthesis, Count };
 
     std::stack<ProcState> m_states;  ///< Current state of parser
     int m_off = 0;  ///< If non-zero, ifdef level is turned off, don't dump text
@@ -405,6 +408,11 @@ bool V3PreProcImp::commentTokenMatch(string& cmdr, const char* strg) {
 }
 
 void V3PreProcImp::comment(const string& text) {
+    Vendors vendor = Vendors::none;
+
+    // by default vendor_off[] is all false, indicating all vendors are in 'translate on' state
+    static bool vendor_off[static_cast<int>(Vendors::Count)];
+
     // Comment detected.  Only keep relevant data.
     bool printed = false;
     if (v3Global.opt.preprocOnly() && v3Global.opt.ppComments()) {
@@ -433,6 +441,7 @@ void V3PreProcImp::comment(const string& text) {
     } else if (VString::startsWith(cp, "synopsys")) {
         cp += strlen("synopsys");
         synth = true;
+        vendor = Vendors::synopsys;
         if (*cp == '_') {
             fileline()->v3error("Extra underscore in meta-comment;"
                                 " use /*synopsys {...}*/ not /*synopsys_{...}*/");
@@ -440,12 +449,19 @@ void V3PreProcImp::comment(const string& text) {
     } else if (VString::startsWith(cp, "cadence")) {
         cp += strlen("cadence");
         synth = true;
+        vendor = Vendors::cadence;
     } else if (VString::startsWith(cp, "pragma")) {
         cp += strlen("pragma");
         synth = true;
+        vendor = Vendors::pragma;
     } else if (VString::startsWith(cp, "ambit synthesis")) {
         cp += strlen("ambit synthesis");
         synth = true;
+        vendor = Vendors::ambit;
+    } else if (0 == (strncmp(cp, "synthesis", strlen("synthesis")))) {
+        cp += strlen("synthesis");
+        synth = true;
+        vendor = Vendors::synthesis;  // yes, not a vendor
     } else {
         return;
     }
@@ -457,6 +473,26 @@ void V3PreProcImp::comment(const string& text) {
     // cmd now is comment without extra spaces and "verilator" prefix
 
     if (synth) {
+        if (commentTokenMatch(cmd /*ref*/, "translate_off")) {
+            // is vendor already set?
+            if (vendor_off[static_cast<int>(vendor)] && (state() == ps_SYNTH_OFF)) {
+                v3warn(USERWARN, "Recursive '// synthesis translate_off' declaration");
+            } else {
+                parsingOff();
+                statePush(ps_SYNTH_OFF);
+                vendor_off[static_cast<int>(vendor)] = true;
+            }
+        }
+        if (commentTokenMatch(cmd /*ref*/, "translate_on")) {
+            if (!vendor_off[static_cast<int>(vendor)] && (state() != ps_SYNTH_OFF)) {
+                v3warn(USERWARN, "Recursive '// synthesis translate_on' without '// synthesis "
+                                 "translate_off' declaration");
+            } else {
+                parsingOn();
+                statePop();
+                vendor_off[static_cast<int>(vendor)] = false;
+            }
+        }
         if (v3Global.opt.assertOn()) {
             // one_hot, one_cold, (full_case, parallel_case)
             if (commentTokenMatch(cmd /*ref*/, "full_case")) {
@@ -979,7 +1015,7 @@ int V3PreProcImp::getStateToken() {
         if (tok == VP_WHITE && state() != ps_STRIFY) return tok;
         if (tok == VP_BACKQUOTE && state() != ps_STRIFY) tok = VP_TEXT;
         if (tok == VP_COMMENT) {
-            if (!m_off) {
+            if (state() == ps_SYNTH_OFF || !m_off) {
                 if (m_lexp->m_keepComments == KEEPCMT_SUB) {
                     string rtn;
                     rtn.assign(yyourtext(), yyourleng());
@@ -1046,6 +1082,9 @@ int V3PreProcImp::getStateToken() {
         switch (state()) {
         case ps_TOP: {
             break;
+        }
+        case ps_SYNTH_OFF: {
+            goto next_tok;
         }
         case ps_DEFNAME_UNDEF:  // FALLTHRU
         case ps_DEFNAME_DEFINE:  // FALLTHRU

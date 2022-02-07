@@ -674,8 +674,10 @@ private:
                 return;
             }
             if (VN_IS(vdtypep, AssocArrayDType) || VN_IS(vdtypep, UnpackArrayDType)) {
+              /*
                 nodep->v3warn(E_UNSUPPORTED, "Unsupported: Replication to form "
                                                  << vdtypep->prettyDTypeNameQ() << " data type");
+              */
             }
             iterateCheckSizedSelf(nodep, "LHS", nodep->lhsp(), SELF, BOTH);
             if (nodep->lhsp()->isString()) {
@@ -1543,6 +1545,14 @@ private:
     virtual void visit(AstDynArrayDType* nodep) override {
         if (nodep->didWidthAndSet()) return;  // This node is a dtype & not both PRELIMed+FINALed
         // Iterate into subDTypep() to resolve that type and update pointer.
+        nodep->refDTypep(iterateEditMoveDTypep(nodep, nodep->subDTypep()));
+        nodep->dtypep(nodep);  // The array itself, not subDtype
+        UINFO(4, "dtWidthed " << nodep << endl);
+    }
+    virtual void visit(AstUnpackArrayDType* nodep) override {
+        if (nodep->didWidthAndSet()) return;  // This node is a dtype & not both PRELIMed+FINALed
+        // Iterate into subDTypep() to resolve that type and update pointer.
+        userIterateAndNext(nodep->rangep(), WidthVP(SELF, BOTH).p());
         nodep->refDTypep(iterateEditMoveDTypep(nodep, nodep->subDTypep()));
         nodep->dtypep(nodep);  // The array itself, not subDtype
         UINFO(4, "dtWidthed " << nodep << endl);
