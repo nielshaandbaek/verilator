@@ -2671,7 +2671,7 @@ class ConstVisitor final : public VNVisitor {
         iterateAndNextNull(nodep->fromp());
         if (VN_IS(nodep->fromp(), Const)) {  // It did.
             if (!m_selp) {
-                nodep->v3error("Illegal assignment of constant to unpacked array");
+                //nodep->v3error("Illegal assignment of constant to unpacked array");
             } else {
                 AstNode* const fromp = nodep->fromp()->unlinkFrBack();
                 nodep->replaceWith(fromp);
