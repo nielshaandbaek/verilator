@@ -1578,6 +1578,11 @@ std::vector<AstUnpackArrayDType*> AstUnpackArrayDType::unpackDimensions() {
     }
     return dims;
 }
+
+int AstUnpackArrayDType::width() const { 
+  return subDTypep()->width()*rangep()->elementsConst(); 
+}
+
 void AstNetlist::dump(std::ostream& str) const {
     this->AstNode::dump(str);
     str << " [" << timeunit() << "/" << timeprecision() << "]";

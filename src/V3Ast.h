@@ -2610,7 +2610,7 @@ public:
         m_numeric = nodep->m_numeric;
     }
     //
-    int width() const { return m_width; }
+    virtual int width() const { return m_width; }
     void numeric(VSigning flag) { m_numeric = flag; }
     bool isSigned() const { return m_numeric.isSigned(); }
     bool isNosign() const { return m_numeric.isNosign(); }
